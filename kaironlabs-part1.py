@@ -2,6 +2,7 @@ import time
 import asyncio
 import aiohttp
 import csv
+import sqlite3
 from datetime import datetime
 from prettytable import PrettyTable
 
@@ -12,7 +13,7 @@ from prettytable import PrettyTable
 # Define the URLs and other constants
 kucoin_url = 'https://api.kucoin.com/api/v1/market/orderbook/level1?symbol={}'
 binance_url = 'https://api.binance.com/api/v3/ticker/bookTicker?symbol={}'
-frequency = 60  # Fetch data every 60 seconds
+frequency = 15  # Fetch data every 60 seconds
 
 # 20 markets to monitor
 markets = [
@@ -21,6 +22,29 @@ markets = [
     "SKL/USDT", "KDA/USDT", "HFT/USDT", "DODO/USDT", "FET/USDT",  # TOP 1000
     "RDNT/USDT", "CAKE/USDT", "WRX/USDT", "ZEC/USDT", "ENS/USDT"  # TOP 1000
 ]
+
+def create_database():
+    # Connect to the SQLite database
+    conn = sqlite3.connect('market_data.db')
+    c = conn.cursor()
+
+    # Create the market_data table if it doesn't exist
+    c.execute('''CREATE TABLE IF NOT EXISTS market_data (
+                    Market TEXT,
+                    KuCoinTimestamp TEXT,
+                    KuCoinBid REAL,
+                    KuCoinAsk REAL,
+                    KuCoinSpread REAL,
+                    KuCoinSlippage REAL,
+                    BinanceBid REAL,
+                    BinanceAsk REAL,
+                    BinanceSpread REAL,
+                    PRIMARY KEY (Market, KuCoinTimestamp, KuCoinBid, KuCoinAsk, KuCoinSpread, BinanceBid, BinanceAsk, BinanceSpread)
+                )''')
+
+    # Commit the changes and close the connection
+    conn.commit()
+    conn.close()
 
 
 # Fetch data from the specified URL using the provided session
@@ -79,7 +103,26 @@ async def main():
         while True:
             print("[START]", datetime.fromtimestamp(time.time()))
             market_data = await get_market_data(session)
+            
+            # DATABASE
+            # Store the collected data in the SQLite database
+            conn = sqlite3.connect('market_data.db')
+            c = conn.cursor()
 
+            # Convert market_data list of dictionaries into a list of tuples
+            data_tuples = [(d['Market'], d['KuCoin Timestamp'], d['KuCoin Bid'], d['KuCoin Ask'], d['KuCoin Spread [%]'],
+                            d['KuCoin Slippage [%]'], d['Binance Bid'], d['Binance Ask'], d['Binance Spread [%]'])
+                        for d in market_data]
+
+            # Execute the executemany operation
+            c.executemany('''INSERT OR IGNORE INTO market_data
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''', data_tuples)
+
+            # Commit the changes and close the connection
+            conn.commit()
+            conn.close()
+
+            #CSV
             # Store the collected data in a CSV file
             filename = 'market_data.csv'
             fieldnames = ['Market', 'KuCoin Timestamp', 'KuCoin Bid', 'KuCoin Ask', 'KuCoin Spread [%]', 'KuCoin Slippage [%]', 'Binance Bid', 'Binance Ask', 'Binance Spread [%]']
@@ -98,4 +141,5 @@ async def main():
             await asyncio.sleep(frequency)
 
 # Run the program
+create_database()
 asyncio.run(main())
