@@ -5,20 +5,20 @@ import csv
 from datetime import datetime
 from prettytable import PrettyTable
 
-# TODO : Insignht -> explain frequency based on timestamp, High spread for illiquidi coins, binance often has lower spread
+# TODO : Insignht -> explain frequency based on timestamp, High spread for illiquid coins, binance often has lower spread
 # TODO : Comments, explain why csv and not sqlite, why not using websockets ..
 # TODO: Faced difficulties, slippage calculation, frequency -> websocket ?
 
 # Define the URLs and other constants
 kucoin_url = 'https://api.kucoin.com/api/v1/market/orderbook/level1?symbol={}'
 binance_url = 'https://api.binance.com/api/v3/ticker/bookTicker?symbol={}'
-frequency = 60 # Fetch data every 60 seconds
+frequency = 60  # Fetch data every 60 seconds
 
 # 20 markets to monitor
 markets = [
-    "BTC/USDT", "ETH/USDT", "XRP/USDT", "DOGE/USDT", "ADA/USDT", # TOP 10
+    "BTC/USDT", "ETH/USDT", "XRP/USDT", "DOGE/USDT", "ADA/USDT",  # TOP 10
     "GMX/USDT", "ARB/USDT", "MKR/USDT", "OP/USDT", "FXS/USDT",  # TOP 100
-    "SKL/USDT", "KDA/USDT", "HFT/USDT", "DODO/USDT", "FET/USDT", # TOP 1000
+    "SKL/USDT", "KDA/USDT", "HFT/USDT", "DODO/USDT", "FET/USDT",  # TOP 1000
     "RDNT/USDT", "CAKE/USDT", "WRX/USDT", "ZEC/USDT", "ENS/USDT"  # TOP 1000
 ]
 
@@ -49,15 +49,15 @@ async def get_market_data(session):
             timestamp = kucoin_data['data']['time']
             binance_bid = float(binance_data['bidPrice'])
             binance_ask = float(binance_data['askPrice'])
-            kucoin_spread_relative = (kucoin_ask - kucoin_bid) / kucoin_ask 
+            kucoin_spread_relative = (kucoin_ask - kucoin_bid) / kucoin_ask
             binance_spread_relative = (binance_ask - binance_bid) / binance_ask
             kucoin_spread_absolute = kucoin_ask - kucoin_bid
-            kucoin_actual_buy = kucoin_ask + 0.02 * kucoin_spread_absolute # Calculate slippage within 2% of the spread
-            slippage = (kucoin_actual_buy - kucoin_ask) / kucoin_ask        
+            kucoin_actual_buy = kucoin_ask + 0.02 * kucoin_spread_absolute  # Calculate slippage within 2% of the spread
+            slippage = (kucoin_actual_buy - kucoin_ask) / kucoin_ask
 
             market_data.append({
                 'Market': market,
-                'KuCoin Timestamp': datetime.fromtimestamp(timestamp/1000.0).replace(microsecond=0),
+                'KuCoin Timestamp': datetime.fromtimestamp(timestamp / 1000.0).replace(microsecond=0),
                 'KuCoin Bid': kucoin_bid,
                 'KuCoin Ask': kucoin_ask,
                 'KuCoin Spread [%]': round(kucoin_spread_relative * 100, 5),
