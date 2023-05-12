@@ -84,18 +84,16 @@ def store_market_data(market_data):
                     d['KuCoin Slippage [%]'])
                 for d in market_data]
 
-    # Execute the executemany operation
+    # Insert data, ignore if duplicate
     c.executemany('''INSERT OR IGNORE INTO market_data
                     VALUES (?, ?, ?, ?, ?, ?)''', data_tuples)
-
-    # Commit
     conn.commit()
 
 # Start the event loop
 async def monitor_and_store():
     async with aiohttp.ClientSession() as session:
         while True:
-            print("[START]", datetime.fromtimestamp(time.time()))
+            print("[FETCHING]", datetime.fromtimestamp(time.time()))
             market_data = await get_market_data(session)
             store_market_data(market_data)
             
@@ -115,7 +113,7 @@ if __name__ == "__main__":
     # Define the URLs and other constants
     kucoin_url = 'https://api.kucoin.com/api/v1/market/orderbook/level1?symbol={}'
     binance_url = 'https://api.binance.com/api/v3/ticker/bookTicker?symbol={}'
-    frequency = 1  # Fetch data every 15 seconds
+    frequency = 15  # Fetch data approximately every 15 seconds
 
     # 20 markets to monitor
     markets = [
