@@ -1,28 +1,12 @@
 import time
 import asyncio
 import aiohttp
-import csv
 import sqlite3
 from datetime import datetime
 from prettytable import PrettyTable
 
-# TODO : Insignht -> explain frequency based on timestamp, High spread for illiquid coins, binance often has lower spread
-# TODO : Comments, explain why csv and not sqlite, why not using websockets ..
-# TODO: Faced difficulties, slippage calculation, frequency -> websocket ?
 
-# Define the URLs and other constants
-kucoin_url = 'https://api.kucoin.com/api/v1/market/orderbook/level1?symbol={}'
-binance_url = 'https://api.binance.com/api/v3/ticker/bookTicker?symbol={}'
-frequency = 15  # Fetch data every 60 seconds
-
-# 20 markets to monitor
-markets = [
-    "BTC/USDT", "ETH/USDT", "XRP/USDT", "DOGE/USDT", "ADA/USDT",  # TOP 10
-    "GMX/USDT", "ARB/USDT", "MKR/USDT", "OP/USDT", "FXS/USDT",  # TOP 100
-    "SKL/USDT", "KDA/USDT", "HFT/USDT", "DODO/USDT", "FET/USDT",  # TOP 1000
-    "RDNT/USDT", "CAKE/USDT", "WRX/USDT", "ZEC/USDT", "ENS/USDT"  # TOP 1000
-]
-
+# Create the database
 def create_database():
     # Connect to the SQLite database
     conn = sqlite3.connect('market_data.db')
@@ -36,10 +20,7 @@ def create_database():
                     KuCoinAsk REAL,
                     KuCoinSpread REAL,
                     KuCoinSlippage REAL,
-                    BinanceBid REAL,
-                    BinanceAsk REAL,
-                    BinanceSpread REAL,
-                    PRIMARY KEY (Market, KuCoinTimestamp, KuCoinBid, KuCoinAsk, KuCoinSpread, BinanceBid, BinanceAsk, BinanceSpread)
+                    PRIMARY KEY (Market, KuCoinTimestamp, KuCoinBid, KuCoinAsk, KuCoinSpread)
                 )''')
 
     # Commit the changes and close the connection
@@ -97,49 +78,55 @@ async def get_market_data(session):
 
     return market_data
 
+def store_market_data(market_data):
+    # Convert market_data list of dictionaries into a list of tuples
+    data_tuples = [(d['Market'], d['KuCoin Timestamp'], d['KuCoin Bid'], d['KuCoin Ask'], d['KuCoin Spread [%]'],
+                    d['KuCoin Slippage [%]'])
+                for d in market_data]
+
+    # Execute the executemany operation
+    c.executemany('''INSERT OR IGNORE INTO market_data
+                    VALUES (?, ?, ?, ?, ?, ?)''', data_tuples)
+
+    # Commit
+    conn.commit()
+
 # Start the event loop
-async def main():
+async def monitor_and_store():
     async with aiohttp.ClientSession() as session:
         while True:
             print("[START]", datetime.fromtimestamp(time.time()))
             market_data = await get_market_data(session)
-            
-            # DATABASE
-            # Store the collected data in the SQLite database
-            conn = sqlite3.connect('market_data.db')
-            c = conn.cursor()
-
-            # Convert market_data list of dictionaries into a list of tuples
-            data_tuples = [(d['Market'], d['KuCoin Timestamp'], d['KuCoin Bid'], d['KuCoin Ask'], d['KuCoin Spread [%]'],
-                            d['KuCoin Slippage [%]'], d['Binance Bid'], d['Binance Ask'], d['Binance Spread [%]'])
-                        for d in market_data]
-
-            # Execute the executemany operation
-            c.executemany('''INSERT OR IGNORE INTO market_data
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''', data_tuples)
-
-            # Commit the changes and close the connection
-            conn.commit()
-            conn.close()
-
-            #CSV
-            # Store the collected data in a CSV file
-            filename = 'market_data.csv'
-            fieldnames = ['Market', 'KuCoin Timestamp', 'KuCoin Bid', 'KuCoin Ask', 'KuCoin Spread [%]', 'KuCoin Slippage [%]', 'Binance Bid', 'Binance Ask', 'Binance Spread [%]']
-            with open(filename, 'a', newline='') as file:
-                writer = csv.DictWriter(file, fieldnames=fieldnames)
-                writer.writerows(market_data)
+            store_market_data(market_data)
             
             # Display current market data in a table
             x = PrettyTable()
-            x.field_names = fieldnames
+            x.field_names =['Market', 'KuCoin Timestamp', 'KuCoin Bid', 'KuCoin Ask',
+                            'KuCoin Spread [%]', 'KuCoin Slippage [%]', 'Binance Bid', 
+                            'Binance Ask', 'Binance Spread [%]']
             for i in range(len(markets)):
                 x.add_row(list(market_data[i].values()))
             print(x)
-
+            
             # Delay before fetching data again
             await asyncio.sleep(frequency)
 
-# Run the program
-create_database()
-asyncio.run(main())
+if __name__ == "__main__":
+    # Define the URLs and other constants
+    kucoin_url = 'https://api.kucoin.com/api/v1/market/orderbook/level1?symbol={}'
+    binance_url = 'https://api.binance.com/api/v3/ticker/bookTicker?symbol={}'
+    frequency = 1  # Fetch data every 15 seconds
+
+    # 20 markets to monitor
+    markets = [
+        "BTC/USDT", "ETH/USDT", "XRP/USDT", "DOGE/USDT", "ADA/USDT",  # TOP 10
+        "GMX/USDT", "ARB/USDT", "MKR/USDT", "OP/USDT", "FXS/USDT",  # TOP 100
+        "SKL/USDT", "KDA/USDT", "HFT/USDT", "DODO/USDT", "FET/USDT",  # TOP 1000
+        "RDNT/USDT", "CAKE/USDT", "WRX/USDT", "ZEC/USDT", "ENS/USDT"  # TOP 1000
+    ]
+    
+    create_database()
+    conn = sqlite3.connect('market_data.db')
+    c = conn.cursor()
+    asyncio.run(monitor_and_store())
+    conn.close()
