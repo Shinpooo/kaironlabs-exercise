@@ -58,7 +58,7 @@ async def get_market_data(session):
             binance_spread_relative = (binance_ask - binance_bid) / binance_ask
             kucoin_spread_absolute = kucoin_ask - kucoin_bid
             kucoin_actual_buy = kucoin_ask + 0.02 * kucoin_spread_absolute  # Calculate slippage within 2% of the spread
-            slippage = (kucoin_actual_buy - kucoin_ask) / kucoin_ask
+            slippage = (kucoin_actual_buy - kucoin_ask) / kucoin_ask # Kucoin ask price is the expected buy price 
 
             market_data.append({
                 'Market': market,
