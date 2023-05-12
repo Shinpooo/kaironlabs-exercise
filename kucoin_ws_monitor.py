@@ -1,11 +1,12 @@
 import asyncio
 import websockets
 import json
+from dotenv import load_dotenv
+import os
 
 async def track_kucoin_prices():
-    token = "2neAiuYvAU61ZDXANAGAsiL4-iAExhsBXZxftpOeh_55i3Ysy2q2LEsEWU64mdzUOPusi34M_wGoSf7iNyEWJwq7A43M3JDbhPV8Q-xiuGJfwerKYsT00tiYB9J6i9GjsxUuhPw3BlrzazF6ghq4L2IYNEnY5_fDA6P70VLLDsw=.ZYmmTuIehSGwGsM4Q9GztQ=="
-
-    uri = 'wss://ws-api-spot.kucoin.com/?token=' + token
+    kucoin_token = os.environ['kucoin_token']
+    uri = 'wss://ws-api-spot.kucoin.com/?token=' + kucoin_token
 
     markets = [
         "BTC-USDT", "ETH-USDT", "XRP-USDT", "DOGE-USDT", "ADA-USDT"  # TOP 10
@@ -39,4 +40,5 @@ async def main():
     await track_kucoin_prices()
 
 if __name__ == '__main__':
+    load_dotenv()  # take environment variables from .env.
     asyncio.run(main())
